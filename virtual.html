@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación Memoria Virtual</title>
+    <style>
+        /* CSS para la Estructura y Estilo */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            background-color: #f4f4f9; 
+            color: #333; 
+        }
+        h1 { color: #034185; }
+        .controls { margin: 20px 0; display: flex; gap: 15px; }
+        .controls button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; transition: background-color 0.3s; }
+        #start-btn { background-color: #28a745; color: white; }
+        #start-btn:hover { background-color: #218838; }
+        #pause-btn { background-color: #ffc107; color: #333; }
+        #pause-btn:hover { background-color: #e0a800; }
+        #stop-btn { background-color: #dc3545; color: white; }
+        #stop-btn:hover { background-color: #c82333; }
+        #reset-btn { background-color: #17a2b8; color: white; }
+        #reset-btn:hover { background-color: #138496; }
+
+        .container { 
+            display: flex; 
+            justify-content: space-around; 
+            width: 95%; 
+            margin-top: 20px; 
+            gap: 20px;
+        }
+        .memory-panel { 
+            border: 2px solid #ccc; 
+            padding: 15px; 
+            border-radius: 8px; 
+            background-color: #fff; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }
+        .disk { width: 350px; height: 500px; } 
+        .ram { width: 300px; height: 350px; } 
+        .cache { width: 100%; max-width: 300px; height: 50px; margin-bottom: 20px; }
+        .cpu-box { 
+            width: 180px; 
+            height: 150px; 
+            background-color: #3498db; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            border-radius: 10px; 
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.7); 
+            animation: cpu-pulse 1s infinite alternate paused; 
+            margin-top: 10px; 
+            padding: 5px;
+        }
+        .memory-slot { 
+            border: 1px solid #ddd; 
+            line-height: 25px; 
+            text-align: center; 
+            font-size: 11px; 
+            margin: 1px;
+            display: inline-block; 
+            box-sizing: border-box; 
+            transition: background-color 0.5s, box-shadow 0.2s; 
+        }
+        .disk-slot { 
+            width: 48px; 
+            height: 30px; 
+        }
+        .ram-slot { width: 60px; height: 35px; } 
+        .cache-slot { width: 70px; height: 48px; } 
+        
+        .legend { padding: 10px; border: 1px dashed #aaa; border-radius: 5px; background-color: #eee; height: fit-content;}
+        .legend div { margin-bottom: 5px; }
+        .process-color { width: 15px; height: 15px; display: inline-block; margin-right: 5px; border: 1px solid #333; }
+
+        @keyframes cpu-pulse {
+            from { box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
+            to { box-shadow: 0 0 20px rgba(52, 152, 219, 1); }
+        }
+
+        .cpu-cache-slots {
+            display: flex;
+            gap: 2px;
+            margin-top: 5px;
+            justify-content: center;
+            width: 100%;
+            padding: 0 5px;
+        }
+        .cpu-cache-slot {
+            width: 30px;
+            height: 20px;
+            border-radius: 3px;
+            background-color: #E0E0E0;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-weight: bold;
+            border: 1px solid #fff;
+            transition: background-color 0.3s;
+        }
+
+        .inactive-processes-panel {
+width: 180px;
+height: fit-content;
+border: 2px solid #ccc;
+padding: 10px;
+border-radius: 8px;
+background-color: #fff;
+box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+margin-top: 20px;
+}
+        .inactive-process-slot {
+padding: 5px;
+margin-bottom: 5px;
+border-radius: 4px;
+text-align: center;
+color: white;
+font-weight: bold;
+border: 1px solid #333;
+}
+        .right-panel-group {
+display: flex;
+flex-direction: column;
+gap: 10px;
+}
+    </style>
+</head>
+<body>
+    <h1>Simulación Memoria Virtual</h1>
+    
+    <div class="controls">
+        <button id="start-btn" onclick="startSimulation()">▶️ Iniciar</button>
+        <button id="pause-btn" onclick="pauseSimulation()" disabled>⏸️ Pausar</button>
+        
+        <button id="reset-btn" onclick="resetSimulation()">🔄 Reiniciar</button>
+    </div>
+    
+    <div id="stats" style="margin-bottom: 15px; font-weight: bold;">
+        Estado: Listo | Tiempo: 0.0s | Tareas Completadas: 0/50
+    </div>
+    
+    <div class="container">
+        <div class="memory-panel disk">
+            <h2>Memoria Virtual (Disco)</h2>
+            <div id="virtual-memory-display" style="display: flex; flex-wrap: wrap;"></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <div class="memory-panel cache">
+                <h3>Caché</h3>
+                <div id="cache-display" style="display: flex; gap: 2px;"></div>
+            </div>
+            
+            <div class="cpu-box" id="cpu-box">
+                <h4>Procesador (CPU)</h4>
+                <div id="cpu-status">IDLE</div>
+                <div class="cpu-cache-slots" id="cpu-cache-slots"></div>
+            </div>
+
+            <div class="memory-panel ram" style="margin-top: 20px;">
+                <h2>Memoria Principal (RAM)</h2>
+                <div id="ram-display" style="display: flex; flex-wrap: wrap;"></div>
+            </div>
+        </div>
+
+        <div class="right-panel-group">
+            <div class="legend">
+                <h3>Leyenda de Procesos</h3>
+                <div id="legend-display"></div>
+            </div>
+            
+            <div class="inactive-processes-panel">
+                <h3>Procesos Inactivos (En espera)</h3>
+                <div id="inactive-processes-display"></div>
+            </div>
+        </div>
+    </div>
+
+   <script>
+    const TOTAL_TASKS = 50;
+    const NUM_PROCESSES = 5; 
+    const RAM_SIZE = 16; 
+    const CACHE_SIZE = 4; 
+    const SIMULATION_SPEED = 500;
+    const PROCESS_COLORS = {
+        'P1': '#FF5733', 'P2': '#33FF57', 'P3': '#3357FF', 'P4': '#FF33A1', 'P5': '#33FFF6', 
+        'P6': '#FFBD33', 'P7': '#8D33FF', 'P8': '#33FFBD'
+    };
+    const COMPLETED_COLOR = '#AAAAAA'; 
+
+    let simulationState = 'ready'; 
+    let simulationInterval;
+    let clockTime = 0;
+
+    let Processes = {}; 
+    let VirtualMemory = new Array(TOTAL_TASKS).fill(null); 
+    let RAM = new Array(RAM_SIZE).fill(null); 
+    let Cache = new Array(CACHE_SIZE).fill(null); 
+    let totalCompletedTasks = 0;
+    let processCycle = []; 
+    let cycleIndex = 0; 
+
+    function getShadeColor(baseColor) { return COMPLETED_COLOR; }
+
+    function setControls(start, pause, reset) {
+        document.getElementById('start-btn').disabled = start;
+        document.getElementById('pause-btn').disabled = pause;
+        
+        document.getElementById('reset-btn').disabled = reset;
+    }
+
+    function startSimulation() {
+        if (simulationState === 'ready' || simulationState === 'paused') {
+            simulationState = 'running';
+            setControls(true, false, false);
+            document.getElementById('cpu-box').style.animationPlayState = 'running';
+            simulationInterval = setInterval(simulationCycle, SIMULATION_SPEED);
+        }
+    }
+
+    function pauseSimulation() {
+        if (simulationState === 'running') {
+            simulationState = 'paused';
+            setControls(false, true, false);
+            clearInterval(simulationInterval);
+            document.getElementById('cpu-box').style.animationPlayState = 'paused';
+        }
+    }
+
+    function stopSimulation(isFinished = false) { // Parámetro añadido para diferenciar el final real
+        if (simulationState === 'running' || simulationState === 'paused') {
+            simulationState = isFinished ? 'finished' : 'stopped';
+            setControls(true, true, false); 
+            clearInterval(simulationInterval);
+            document.getElementById('cpu-box').style.animationPlayState = 'paused';
+            
+            if (isFinished) {
+                Cache = new Array(CACHE_SIZE).fill(null); // Limpia Caché
+                RAM = new Array(RAM_SIZE).fill(null);     // Limpia RAM
+                document.getElementById('cpu-status').innerText = 'IDLE'; 
+            } else {
+                document.getElementById('cpu-status').innerText = 'DETENIDO';
+            }
+            
+            updateDisplay();
+        }
+    }
+
+    function resetSimulation() {
+        stopSimulation();
+        simulationState = 'ready';
+        clockTime = 0;
+        totalCompletedTasks = 0;
+        Processes = {};
+        VirtualMemory = new Array(TOTAL_TASKS).fill(null);
+        RAM = new Array(RAM_SIZE).fill(null);
+        Cache = new Array(CACHE_SIZE).fill(null);
+        processCycle = [];
+        cycleIndex = 0;
+        
+        document.getElementById('cpu-status').innerText = 'IDLE';
+        setControls(false, true, false);
+        initializeSimulation(true); 
+    }
+
+    function initializeSimulation(isReset = false) {
+        const processIDs = Object.keys(PROCESS_COLORS).slice(0, NUM_PROCESSES); 
+
+        processIDs.forEach(id => {
+            Processes[id] = { color: PROCESS_COLORS[id], tasks: [], totalTasks: 0, completedTasks: 0, finished: false };
+            processCycle.push(id); 
+        });
+
+        const mainProcessID = processIDs[0]; // P1
+        for (let taskID = 1; taskID <= TOTAL_TASKS; taskID++) {
+            Processes[mainProcessID].tasks.push(taskID);
+        }
+
+        let virtualMemoryIndex = 0;
+        Processes[mainProcessID].totalTasks = Processes[mainProcessID].tasks.length;
+        Processes[mainProcessID].tasks.forEach(taskId => {
+            VirtualMemory[virtualMemoryIndex++] = { process: mainProcessID, task: taskId, color: Processes[mainProcessID].color, completed: false };
+        });
+
+        for (let i = 0; i < RAM_SIZE; i++) {
+            const vmTask = VirtualMemory.find(v => v && !RAM.some(r => r && r.task === v.task));
+            if (vmTask) {
+                RAM[i] = { process: vmTask.process, task: vmTask.task, ramFrame: i, loaded: Date.now() };
+            }
+        }
+        
+        for (let i = 0; i < CACHE_SIZE; i++) {
+             if (RAM[i]) {
+                Cache[i] = RAM[i];
+             }
+        }
+        
+        updateDisplay();
+
+        if (!isReset) {
+            setControls(false, true, false);
+        } else {
+            document.getElementById('stats').innerHTML = "Estado: Listo | Tiempo: 0.0s | Tareas Completadas: 0/50";
+        }
+    }
+
+    function simulationCycle() {
+        if (simulationState !== 'running') return;
+        
+        clockTime += SIMULATION_SPEED / 1000;
+
+        if (totalCompletedTasks >= TOTAL_TASKS) {
+            stopSimulation(true); 
+            document.getElementById('stats').innerHTML = `FIN DE LA SIMULACIÓN: Tiempo: ${clockTime.toFixed(1)}s | Tareas Completadas: 50/50`;
+            return; 
+        }
+
+        const activeProcessID = 'P1';
+        const activeProcess = Processes[activeProcessID];
+        
+        const taskIndex = VirtualMemory.findIndex(page => page && page.process === activeProcessID && !page.completed);
+        
+        if (taskIndex === -1) {
+            activeProcess.finished = true;
+            updateDisplay();
+            return;
+        }
+        const taskToExecute = VirtualMemory[taskIndex];
+        
+        let ramIndex = RAM.findIndex(item => item && item.task === taskToExecute.task);
+        const cacheIndex = Cache.findIndex(item => item && item.task === taskToExecute.task);
+
+        if (cacheIndex !== -1) {
+        } else if (ramIndex !== -1) {
+            Cache.shift(); 
+            Cache.push(RAM[ramIndex]);
+        } else {
+            
+            let freeFrameIndex = RAM.findIndex(item => item === null);
+            
+            if (freeFrameIndex === -1) {
+                const victimIndex = 0; 
+                const victim = RAM[victimIndex];
+                
+                animateSwap('ram-slot-' + victim.ramFrame, 'disk-slot-' + VirtualMemory.findIndex(v => v && v.task === victim.task), true);
+                
+                RAM.shift();
+                RAM.push(null);
+                freeFrameIndex = RAM_SIZE - 1; 
+                RAM.forEach((item, idx) => { if (item) item.ramFrame = idx; });
+            }
+
+            animateSwap('disk-slot-' + taskIndex, 'ram-slot-' + freeFrameIndex); 
+            
+            RAM[freeFrameIndex] = { process: taskToExecute.process, task: taskToExecute.task, ramFrame: freeFrameIndex, loaded: Date.now() };
+
+            Cache.shift();
+            Cache.push(RAM[freeFrameIndex]);
+        }
+        
+        document.getElementById('cpu-status').innerText = `P${taskToExecute.process} - T${taskToExecute.task}`;
+        
+        if (!taskToExecute.completed) {
+            taskToExecute.completed = true;
+            activeProcess.completedTasks++;
+            totalCompletedTasks++;
+        }
+
+        if (activeProcess.completedTasks === activeProcess.totalTasks && !activeProcess.finished) {
+            activeProcess.finished = true;
+        }
+        
+        updateDisplay();
+    }
+
+    function animateSwap(fromId, toId, isSwapOut = false) {
+        const fromElement = document.getElementById(fromId);
+        const toElement = document.getElementById(toId);
+        
+        if (fromElement) {
+            fromElement.style.boxShadow = isSwapOut ? '0 0 15px 5px orange' : '0 0 15px 5px green';
+            setTimeout(() => { fromElement.style.boxShadow = 'none'; }, SIMULATION_SPEED / 3);
+        }
+        if (toElement) {
+            toElement.style.boxShadow = isSwapOut ? 'none' : '0 0 15px 5px green';
+            setTimeout(() => { toElement.style.boxShadow = 'none'; }, SIMULATION_SPEED / 3);
+        }
+    }
+
+    function updateDisplay() {
+        document.getElementById('stats').innerHTML = `
+            Estado: ${simulationState.toUpperCase()} | 
+            Tiempo: ${clockTime.toFixed(1)}s | 
+            Tareas Completadas: ${totalCompletedTasks}/${TOTAL_TASKS}
+        `;
+
+        const legendDisplay = document.getElementById('legend-display');
+        legendDisplay.innerHTML = Object.keys(Processes).map(id => {
+            const p = Processes[id];
+            const status = p.finished ? 'COMPLETADO' : (p.totalTasks > 0 ? 'PENDIENTE' : 'SIN TAREAS');
+            const completedText = p.totalTasks > 0 ? `(${p.completedTasks}/${p.totalTasks})` : '';
+            return `
+                <div>
+                    <span class="process-color" style="background-color: ${p.color};"></span>
+                    <strong>${id}</strong> ${completedText} - ${status}
+                </div>`;
+        }).join('');
+        
+        const inactiveDisplay = document.getElementById('inactive-processes-display');
+        inactiveDisplay.innerHTML = Object.keys(Processes)
+            .filter(id => id !== 'P1' && Processes[id].totalTasks === 0)
+            .map(id => {
+                const p = Processes[id];
+                return `<div class="inactive-process-slot" style="background-color: ${p.color};">
+                            ${id} (En Espera)
+                        </div>`; 
+            }).join('');
+
+        const vmDisplay = document.getElementById('virtual-memory-display');
+        vmDisplay.innerHTML = VirtualMemory.map((page, index) => {
+            if (!page) return '';
+            const process = Processes[page.process];
+            const isCompleted = page.completed;
+            const bgColor = isCompleted ? getShadeColor(page.color) : page.color;
+            const textColor = isCompleted ? '#000' : '#fff';
+            const shadow = (RAM.some(r => r && r.task === page.task)) ? '0 0 5px #000' : 'none'; 
+            
+            return `<div id="disk-slot-${index}" class="memory-slot disk-slot" 
+                        style="background-color: ${bgColor}; color: ${textColor}; box-shadow: ${shadow};">
+                        ${page.process} T${page.task}
+                    </div>`;
+        }).join('');
+
+        const ramDisplay = document.getElementById('ram-display');
+        ramDisplay.innerHTML = RAM.map((frame, index) => {
+            const isActive = Cache.some(c => c && c.task === frame?.task); 
+            const bgColor = frame ? Processes[frame.process].color : '#F0F0F0';
+            const content = frame ? `${frame.process} T${frame.task}` : 'Vacío';
+            const shadow = isActive ? '0 0 10px 3px yellow' : 'none';
+            const textColor = isActive ? '#333' : (frame ? '#fff' : '#aaa');
+
+            return `<div id="ram-slot-${index}" class="memory-slot ram-slot" 
+                        style="background-color: ${bgColor}; color: ${textColor}; box-shadow: ${shadow};">
+                        ${content}
+                    </div>`;
+        }).join('');
+  
+        const cacheDisplay = document.getElementById('cache-display');
+        cacheDisplay.innerHTML = Cache.map((slot, index) => {
+            const bgColor = slot ? Processes[slot.process].color : '#E0E0E0';
+            const content = slot ? `${slot.process} T${slot.task}` : 'Vacío';
+            const textColor = slot ? '#fff' : '#aaa';
+
+            return `<div class="memory-slot cache-slot" 
+                        style="background-color: ${bgColor}; color: ${textColor}; font-size: 11px;">
+                        ${content}
+                    </div>`;
+        }).join('');
+
+        const cpuCacheDisplay = document.getElementById('cpu-cache-slots');
+        cpuCacheDisplay.innerHTML = Cache.map((slot, index) => {
+            const bgColor = slot ? Processes[slot.process].color : '#E0E0E0';
+            const content = slot ? `T${slot.task}` : 'IDLE';
+            const textColor = slot ? '#fff' : '#333';
+            const cpuStatusText = document.getElementById('cpu-status').innerText;
+            const isActiveInCache = slot && cpuStatusText.includes(`T${slot.task}`) && simulationState === 'running';
+
+            const shadow = isActiveInCache ? '0 0 8px 2px #fff' : 'none';
+
+            return `<div class="cpu-cache-slot" 
+                        style="background-color: ${bgColor}; color: ${textColor}; box-shadow: ${shadow};">
+                        ${content}
+                    </div>`;
+        }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeSimulation();
+        setControls(false, true, false); 
+    });
+</script> 
+</body>
+</html>
